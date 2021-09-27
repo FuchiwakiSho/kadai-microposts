@@ -59,7 +59,7 @@ class User extends Authenticatable
      */
     public function loadRelationshipCounts()
     {
-        $this->loadCount(['microposts', 'followings', 'followers']);
+        $this->loadCount(['microposts', 'followings', 'followers','favorites']);
     }
     public function follow($userId)
     {
@@ -120,5 +120,51 @@ class User extends Authenticatable
         $userIds[] = $this->id;
         // それらのユーザが所有する投稿に絞り込む
         return Micropost::whereIn('user_id', $userIds);
+    }
+    public function favorites()
+    {
+        return $this->belongsToMany(Micropost::class, 'favorites', 'user_id', 'micropost_id')->withTimestamps();
+    }
+    public function favorite($micropostId)
+    {
+        // すでにお気に入り登録しているかの確認
+        $exist = $this->is_favorite($micropostId);
+
+        if ($exist) {
+            // すでにお気に入り登録していれば何もしない
+            return false;
+        } else {
+            // お気に入り登録していなければお気に入り登録する
+            $this->favorites()->attach($micropostId);
+            return true;
+        }
+    }
+    public function unfavorite($micropostId)
+    {
+        // すでにお気に入り登録しているかの確認
+        $exist = $this->is_favorite($micropostId);
+
+        if ($exist) {
+            // すでにお気に入り登録していればお気に入り登録を外す
+            $this->favorites()->detach($micropostId);
+            return true;
+        } else {
+            // お気に入り登録していなければ何もしない
+            return false;
+        }
+    }
+    public function is_favorite($micropostId)
+    {
+        // お気に入り登録している中に $micropostIdのものが存在するか
+        return $this->favorites()->where('micropost_id', $micropostId)->exists();
+    }
+    public function feed_favorite()
+    {
+        // このユーザがお気に入り登録中の投稿のidを取得して配列にする
+        $micropostIds = $this->favorites()->pluck('microposts.id')->toArray();
+        // この投稿のidもその配列に追加
+        $micropotstIds[] = $this->id;
+        // それらの投稿が所有する投稿に絞り込む
+        return Micropost::whereIn('micropost_id', $micropostIds);
     }
 }
